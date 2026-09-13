@@ -361,7 +361,7 @@ function sendProblem(
   headers: Record<string, string>
 ): void {
   sendJson(response, error.status, {
-    type: `https://opensource-loyalty.dev/problems/${error.code}`,
+    type: `https://loyalty-interchange.org/problems/${error.code}`,
     title: error.code
       .split("_")
       .map((part) => part[0]?.toUpperCase() + part.slice(1))
@@ -1075,7 +1075,7 @@ export function createCloudServer(
       }
       if (error instanceof CustomerPlatformError) {
         sendJson(response, error.status, {
-          type: `https://opensource-loyalty.dev/problems/${error.code}`,
+          type: `https://loyalty-interchange.org/problems/${error.code}`,
           title: error.code,
           status: error.status,
           detail: error.message,

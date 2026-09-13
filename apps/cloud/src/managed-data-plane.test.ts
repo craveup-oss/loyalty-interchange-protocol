@@ -345,7 +345,10 @@ describe("managed data-plane manager", () => {
       `${server.url}/runtime/v1/environments/env-unknown/.well-known/lip`
     );
     expect(missing.status).toBe(404);
-    expect(await missing.json()).toMatchObject({ code: "environment_not_found" });
+    expect(await missing.json()).toMatchObject({
+      code: "environment_not_found",
+      type: "https://loyalty-interchange.org/problems/environment_not_found"
+    });
   });
 
   it("re-reads status per request, so a suspension takes effect without a restart", async () => {

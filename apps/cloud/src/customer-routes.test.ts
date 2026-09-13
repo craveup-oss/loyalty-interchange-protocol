@@ -130,6 +130,9 @@ describe("managed customer HTTP routes", () => {
         headers: { ...headers, authorization: "Bearer wrong" }
       });
       expect(rejected.status).toBe(401);
+      expect(await rejected.json()).toMatchObject({
+        type: "https://loyalty-interchange.org/problems/invalid_token"
+      });
     } finally {
       await running.close();
       await customers.close();

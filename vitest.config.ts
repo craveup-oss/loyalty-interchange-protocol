@@ -28,8 +28,7 @@ export default defineConfig({
         "packages/server/src/engagement.ts",
         "packages/cli/src/cli.ts",
         "packages/cli/src/mock.ts",
-        "packages/mcp/src/**",
-        "packages/storage-postgres/src/**"
+        "packages/mcp/src/**"
       ],
       thresholds: {
         lines: 85,

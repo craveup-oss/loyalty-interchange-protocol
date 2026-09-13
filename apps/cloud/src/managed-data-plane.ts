@@ -548,7 +548,7 @@ function normalizeBaseUrl(value: string): string {
 
 function sendRuntimeProblem(response: ServerResponse, error: CloudError): void {
   const payload = JSON.stringify({
-    type: `https://opensource-loyalty.dev/problems/${error.code}`,
+    type: `https://loyalty-interchange.org/problems/${error.code}`,
     title: error.code.replace(/_/g, " "),
     status: error.status,
     detail: error.message,

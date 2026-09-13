@@ -182,6 +182,7 @@ describe("control-plane route membership inventory", () => {
           });
           expect(response.status, `${kind}: ${route.method} ${route.path}`).toBe(404);
           expect(await response.json()).toMatchObject({
+            type: "https://loyalty-interchange.org/problems/not_found",
             code: "not_found",
             detail: "Organization was not found"
           });

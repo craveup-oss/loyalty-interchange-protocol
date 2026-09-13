@@ -34,6 +34,12 @@ verify` with disposable local PostgreSQL passes 65 files / 493 tests, zero skips
 including types, coverage, builds, examples, packages and docs. No production
 authorization implementation, schema or managed resources changed.
 
+The cloud API and managed-runtime error responses now use the engine/wallet and
+documented `https://loyalty-interchange.org/problems/` namespace. HTTP regressions
+for cloud authorization, customer authentication and managed runtime errors
+failed against the old host and pass with the aligned host. Status, code and
+detail semantics are unchanged. Full verification remains 65 files / 493 tests.
+
 ## Still required before scale-out
 
 1. Keep the route membership inventory current. Repository signatures remain
@@ -43,8 +49,8 @@ authorization implementation, schema or managed resources changed.
    existing PostgreSQL coordination where applicable, but do not assume a lease
    makes an external webhook exactly-once: retries need stable event identity
    and receiver idempotency, and ownership loss must fence state commits.
-3. Unified problem-type host, remaining catalogue ownership simplification,
-   lint and PostgreSQL storage coverage.
+3. Remaining catalogue ownership simplification, lint and PostgreSQL storage
+   coverage. Problem-type host alignment is complete in the second increment.
 4. Two-instance sandbox evidence for concurrency, restart, lease loss and
    recovery. Keep the existing one-instance deployment restriction until this
    evidence is recorded. This increment does not authorize paid scale-out or

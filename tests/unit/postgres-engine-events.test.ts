@@ -64,6 +64,12 @@ pgDescribe("transactional engine event outbox", () => {
       const other = new PostgresEngineRepository({ pool: f.pool, tenantId: `other-${randomUUID()}`, programId: f.program.program_id });
       await other.acknowledgeEvent(pending!.outbox_id);
       expect(await f.repo.listPendingEvents()).toHaveLength(1);
+      const otherProgram = new PostgresEngineRepository({ pool: f.pool, tenantId: f.tenantId, programId: "another-program" });
+      expect(await otherProgram.listPendingEvents()).toEqual([]);
+      await otherProgram.acknowledgeEvent(pending!.outbox_id);
+      expect(await f.repo.listPendingEvents()).toHaveLength(1);
+      await expect(f.repo.listPendingEvents(0)).rejects.toThrow("1..100");
+      await expect(f.repo.listPendingEvents(101)).rejects.toThrow("1..100");
       await withTenantTransaction(f.pool, `other-${randomUUID()}`, async (client) => {
         expect((await client.query("SELECT * FROM lip_engine_event_outbox")).rows).toEqual([]);
       });

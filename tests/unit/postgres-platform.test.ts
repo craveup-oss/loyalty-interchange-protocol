@@ -1,11 +1,38 @@
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
-import { createPostgresProtocolPlatform } from "@loyalty-interchange/server";
+import { describe, expect, it, vi } from "vitest";
+import { createPostgresProtocolPlatform, WebhookDispatcher } from "@loyalty-interchange/server";
 import { makeEnroll, makeMembershipProgram } from "../fixtures.js";
 
 const postgresDescribe = process.env["LIP_TEST_POSTGRES_URL"] ? describe : describe.skip;
 
 postgresDescribe("Postgres protocol platform with admin services", () => {
+  it("recovers a committed engine event after handoff failure and restart without sending to a new subscriber", async () => {
+    const options = {
+      connectionString: process.env["LIP_TEST_POSTGRES_URL"]!, tenantId: `event-platform-${randomUUID()}`,
+      seed: false, program: makeMembershipProgram(),
+      webhooks: [{ subscription_id: "original", url: "https://receiver.example/hook", secret: "long-enough-test-secret" }]
+    };
+    const first = await createPostgresProtocolPlatform(options);
+    const admission = vi.spyOn(WebhookDispatcher.prototype, "enqueue").mockRejectedValue(new Error("handoff unavailable"));
+    try {
+      await first.executeEngineOperation(() => first.engine.enroll(makeEnroll("durable-platform-event")));
+      expect((await first.store.load())?.state.members).toHaveLength(1);
+      expect(await first.store.listPendingEvents()).toHaveLength(1);
+    } finally {
+      await first.close();
+      admission.mockRestore();
+    }
+    const second = await createPostgresProtocolPlatform({ ...options, webhooks: [
+      { ...options.webhooks[0]!, active: false },
+      { subscription_id: "new", url: "https://new.example/hook", secret: "long-enough-test-secret" }
+    ] });
+    try {
+      expect(await second.store.listPendingEvents()).toEqual([]);
+      expect(second.webhooks.pendingDeliveries()).toHaveLength(1);
+      expect(second.webhooks.pendingDeliveries()[0]!.url).toBe(options.webhooks[0]!.url);
+    } finally { await second.close(); }
+  });
+
   it("wires tenant-scoped admin services and persists engine + admin state across restart", async () => {
     const connectionString = process.env["LIP_TEST_POSTGRES_URL"]!;
     const tenantId = `test-platform-${randomUUID()}`;

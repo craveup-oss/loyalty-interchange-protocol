@@ -84,6 +84,32 @@ function eventedEngine(emitted: LoyaltyEvent[], clock = new MutableClock()): Eve
 }
 
 describe("WebhookDispatcher", () => {
+  it("durably admits captured recipients, retains paused deliveries and excludes new subscriptions", async () => {
+    const captured: CapturedRequest[] = [];
+    const dispatcher = await WebhookDispatcher.create({
+      subscriptions: [{ subscription_id: "old", url: "https://receiver.example/hooks", secret: "hook-secret" }],
+      fetch: capturingFetch(captured)
+    });
+    const recipients = dispatcher.listSubscriptions();
+    dispatcher.upsertSubscription({ subscription_id: "old", url: recipients[0]!.url, secret: "a-long-enough-secret", active: false });
+    dispatcher.upsertSubscription({ subscription_id: "new", url: "https://new.example/hooks", secret: "a-long-enough-secret" });
+    await dispatcher.enqueue(makeEvent(), recipients);
+    await dispatcher.flush();
+    expect(captured).toEqual([]);
+    expect(dispatcher.pendingDeliveries()).toHaveLength(1);
+    expect(dispatcher.pendingDeliveries()[0]!.url).toBe(recipients[0]!.url);
+  });
+
+  it("rejects durable admission if initial outbox persistence fails", async () => {
+    const dispatcher = await WebhookDispatcher.create({
+      subscriptions: [{ url: "https://receiver.example/hooks", secret: "hook-secret" }],
+      outbox: { list: async () => [], put: async () => { throw new Error("store unavailable"); }, remove: async () => undefined },
+      fetch: capturingFetch([])
+    });
+    await expect(dispatcher.enqueue(makeEvent(), dispatcher.listSubscriptions())).rejects.toThrow("store unavailable");
+    await dispatcher.flush();
+  });
+
   it("preserves a zero-length history configuration", async () => {
     const dispatcher = await WebhookDispatcher.create({
       subscriptions: [{ url: "https://receiver.example/hooks", secret: "hook-secret" }],
@@ -93,6 +119,19 @@ describe("WebhookDispatcher", () => {
     await dispatcher.flush();
     expect(dispatcher.deliveries()).toEqual([]);
   });
+
+  it("cancels removed recipients rather than delivering to a replacement at the same URL", async () => {
+    const captured: CapturedRequest[] = [];
+    const dispatcher = await WebhookDispatcher.create({
+      subscriptions: [{ subscription_id: "replacement", url: "https://receiver.example/hooks", secret: "hook-secret" }],
+      fetch: capturingFetch(captured)
+    });
+    await dispatcher.enqueue(makeEvent(), [{ subscription_id: "removed", url: "https://receiver.example/hooks" }]);
+    await dispatcher.flush();
+    expect(captured).toEqual([]);
+    expect(dispatcher.pendingDeliveries()).toEqual([]);
+  });
+
   it("keeps the emitted event snapshot stable across asynchronous persistence", async () => {
     const captured: CapturedRequest[] = [];
     const dispatcher = await WebhookDispatcher.create({

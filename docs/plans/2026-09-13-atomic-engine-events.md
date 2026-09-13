@@ -1,6 +1,7 @@
 # Atomic PostgreSQL engine events — PLA-990
 
-Status: implementation in progress. No deployment or scale-out authorization.
+Status: implemented, awaiting exact-head PR verification and merge. No deployment
+or scale-out authorization.
 
 ## Decision
 
@@ -29,20 +30,20 @@ Engine reset cascades to the source outbox. Ordinary updates must not delete it.
 
 ## Implementation and verification
 
-- [ ] Add migration 004: tenant/program FK, event identity uniqueness, bounded
+- [x] Add migration 004: tenant/program FK, event identity uniqueness, bounded
   read index, FORCE RLS and runtime-role grants. Do not rewrite old migrations.
-- [ ] Extend the existing repository mutation owner with a collected-events
+- [x] Extend the existing repository mutation owner with a collected-events
   callback, called after the operation but before commit. Test success,
   rollback on invalid event persistence, restart, replay and tenant isolation
   against real PostgreSQL; test erasure and reset.
-- [ ] Add awaited dispatcher admission using captured recipients. Keep the
+- [x] Add awaited dispatcher admission using captured recipients. Keep the
   existing synchronous emit facade for standalone callers. A failed durable
   write must reject admission, not acknowledge the source event.
-- [ ] Wire managed platform emission into the transaction; recover at startup,
+- [x] Wire managed platform emission into the transaction; recover at startup,
   after mutations and on a serialized 30-second timer. Stop/drain that timer
   before journals and the pool close. Delivery failure must not report a
   committed points operation as rolled back.
-- [ ] Test crash/restart handoff, recipient changes and storage rejection.
+- [x] Test crash/restart handoff, recipient changes and storage rejection.
 - [ ] Run full PostgreSQL verify, dependency audit, spec and release checks;
   self-review, address justified GitHub comments and normal-merge exact head.
 

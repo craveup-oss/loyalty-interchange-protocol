@@ -22,6 +22,23 @@ reservation, member), so idempotent request replays re-deliver events with the
 same CloudEvent `source` + `id`. Receivers deduplicate on that pair, as the
 spec requires.
 
+## PostgreSQL transaction boundary
+
+Managed operations through `executeEngineOperation` commit engine state and
+captured event recipients together in `lip_engine_event_outbox`. Startup,
+post-mutation handoff and a 30-second retry timer transfer these events into the
+existing delivery journal. Source rows are acknowledged only after durable
+admission, not after a fire-and-forget call. Removed recipients are canceled;
+paused recipients remain queued. New subscriptions do not receive earlier
+pending events. Erasure removes still-pending source payloads for that member;
+it cannot recall delivered webhooks or erase existing delivery history.
+
+An interrupted acknowledgement can produce duplicate deliveries with the same
+source/id. Receivers must still deduplicate. This is not a distributed lease:
+managed services remain single-instance. SQLite/demo calls do not share this
+PostgreSQL guarantee. Before runtime rollback, freeze writes and inspect/drain
+the new source table; retain it because old code cannot recover its rows.
+
 ## Enabling delivery
 
 Set environment variables before starting the server:

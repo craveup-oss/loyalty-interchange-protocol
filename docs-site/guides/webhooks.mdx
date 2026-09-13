@@ -21,6 +21,12 @@ The reference platform pushes CloudEvents 1.0 structured JSON to HTTP receivers 
 
 Event ids are derived from the underlying resource ids (ledger entry, reservation, member), so idempotent request replays re-deliver events with the same CloudEvent `source` + `id`. Receivers deduplicate on that pair, as the spec requires.
 
+## PostgreSQL transaction boundary
+
+Managed operations through `executeEngineOperation` atomically save engine state and intended webhook recipients in `lip_engine_event_outbox`. Startup, post-mutation handoff and a 30-second retry timer transfer events into the delivery journal before acknowledging their source rows. Removed subscriptions are canceled; paused subscriptions retain queued deliveries; new subscriptions do not receive old pending events. Member erasure deletes still-pending source payloads, not previously delivered webhooks or existing delivery history.
+
+An interrupted acknowledgement may produce duplicates with the same source/id. Keep receiver deduplication and the single-instance restriction: this is not distributed coordination, and SQLite/demo mode does not gain a PostgreSQL transaction guarantee. For rollback, freeze writes and inspect/drain the source table. Keep the table and pending rows, since old runtime code cannot recover them.
+
 ## Enabling delivery
 
 Set environment variables before starting the server:

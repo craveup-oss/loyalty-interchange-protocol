@@ -13,6 +13,16 @@ import {
   type VersionedState
 } from "@loyalty-interchange/storage";
 import { assertSessionLeaseCompatibleUrl } from "./connection-policy.js";
+import type { LoyaltyEvent } from "@loyalty-interchange/protocol";
+
+export interface PendingEngineEventInput {
+  event: LoyaltyEvent;
+  recipients: Array<{ subscription_id: string; url: string }>;
+}
+
+export interface PendingEngineEvent extends PendingEngineEventInput {
+  outbox_id: string;
+}
 
 export { assertSessionLeaseCompatibleUrl } from "./connection-policy.js";
 
@@ -31,6 +41,11 @@ const migrations = [
     version: 3,
     name: "tenant_runtime_role",
     url: new URL("../migrations/003_tenant_runtime_role.sql", import.meta.url)
+  },
+  {
+    version: 4,
+    name: "engine_event_outbox",
+    url: new URL("../migrations/004_engine_event_outbox.sql", import.meta.url)
   }
 ] as const;
 
@@ -435,16 +450,62 @@ export class PostgresEngineRepository {
 
   public async mutate<T>(
     engine: LoyaltyEngine,
-    operation: () => T | Promise<T>
+    operation: () => T | Promise<T>,
+    collectEvents: () => readonly PendingEngineEventInput[] = () => []
   ): Promise<T> {
     return this.serialized(async () => this.inTenantTransaction(async (client) => {
       await this.lockEngine(client);
       const current = await this.loadWithClient(client);
       if (current) engine.replaceState(current.state);
-      const result = await operation();
-      await this.saveWithClient(client, engine.exportState(), current?.revision ?? 0);
-      return result;
+      const before = engine.exportState();
+      try {
+        const result = await operation();
+        const state = engine.exportState();
+        await this.saveWithClient(client, state, current?.revision ?? 0);
+        for (const pending of collectEvents()) {
+          await client.query(`
+            INSERT INTO lip_engine_event_outbox
+              (tenant_id, program_id, outbox_id, event_source, event_id, subject, event, recipients)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)
+            ON CONFLICT (tenant_id, program_id, event_source, event_id) DO NOTHING
+          `, [this.tenantId, this.programId, randomUUID(), pending.event.source,
+            pending.event.id, pending.event.subject ?? null, json(pending.event), json(pending.recipients)]);
+        }
+        const erased = state.members.filter(([, member]) => member.status === "closed" && member.identities.some(
+          (identity) => identity.issuer === "lip-erasure"
+        )).map(([id]) => id);
+        if (erased.length) {
+          await client.query(`DELETE FROM lip_engine_event_outbox
+            WHERE tenant_id = $1 AND program_id = $2 AND subject = ANY($3::text[])`,
+          [this.tenantId, this.programId, erased]);
+        }
+        return result;
+      } catch (error) {
+        // Restore normal mutation state after a pre-commit failure. Program
+        // publishers own restoration of their definition as well as state.
+        if (engine.exportState().program_fingerprint === before.program_fingerprint) engine.replaceState(before);
+        throw error;
+      }
     }));
+  }
+
+  public async listPendingEvents(limit = 100): Promise<PendingEngineEvent[]> {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("Event batch limit must be 1..100");
+    return this.inTenantTransaction(async (client) => {
+      const result = await client.query<PendingEngineEvent & QueryResultRow>(`
+        SELECT outbox_id, event, recipients FROM lip_engine_event_outbox
+        WHERE tenant_id = $1 AND program_id = $2 ORDER BY created_at, outbox_id LIMIT $3
+      `, [this.tenantId, this.programId, limit]);
+      return result.rows;
+    });
+  }
+
+  public async acknowledgeEvent(outboxId: string): Promise<void> {
+    await this.inTenantTransaction(async (client) => {
+      await client.query(`DELETE FROM lip_engine_event_outbox
+        WHERE tenant_id = $1 AND program_id = $2 AND outbox_id = $3`,
+      [this.tenantId, this.programId, outboxId]);
+    });
   }
 
   public async withLease<T>(

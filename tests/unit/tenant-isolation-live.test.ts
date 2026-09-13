@@ -70,7 +70,8 @@ live("tenant isolation against a live Postgres", () => {
     expect(applied.rows.map((row) => row.name)).toEqual([
       "normalized_engine",
       "tenant_isolation",
-      "tenant_runtime_role"
+      "tenant_runtime_role",
+      "engine_event_outbox"
     ]);
   });
 

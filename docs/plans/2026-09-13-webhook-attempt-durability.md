@@ -27,7 +27,7 @@ request cannot be undone; its durable completion still needs reconciliation.
 - [x] Fix the existing serialization owner, without adding another dispatcher.
 - [x] Test recovery, completed-history failure, outbox-removal failure and
       pause/removal races. Keep existing signing and restart tests.
-- [ ] Run `npm run verify`, review the exact diff and current GitHub comments,
+- [x] Run `npm run verify`, review the exact diff and current GitHub comments,
       fix justified findings, then normal merge to `dev`.
 
 ## Explicitly still open under PLA-919
@@ -54,4 +54,6 @@ store suites passed 29 tests. Review also caught and preserved zero-history-limi
 behavior; emitted event snapshots now remain stable if a caller mutates its
 original object during asynchronous delivery.
 
-GitHub review and exact-head checks are still required before normal merge.
+Reviewed and normally merged through PR #77. Exact head `ade3f9e` passed hosted
+verification with no outstanding review comments; dev merge `0df48eb` has the
+same tree. The explicit distributed-work limitations above remain open.

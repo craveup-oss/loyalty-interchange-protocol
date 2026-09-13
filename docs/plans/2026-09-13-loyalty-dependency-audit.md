@@ -19,10 +19,10 @@ compatible fixes out of an unreleased platform is unnecessary risk.
 ## Execution and acceptance
 
 - [x] Reproduce the audit failure and trace actual dependency owners.
-- [ ] Refresh only affected dependencies within existing ranges; raise the
+- [x] Refresh only affected dependencies within existing ranges; raise the
       directly declared Vitest/coverage minimum together. No force upgrades,
       broad overrides, dependency removals or advisory suppressions.
-- [ ] Add `audit:check` and run it in the existing CI verification job.
+- [x] Add `audit:check` to the existing CI verification job.
 - [ ] Require zero reported vulnerabilities at this checkpoint, full verification
       with disposable PostgreSQL, generated artifact parity and package/release
       checks. Review the exact lockfile and normal merge after CI.
@@ -30,3 +30,17 @@ compatible fixes out of an unreleased platform is unnecessary risk.
 The audit command requires registry access and fails visibly when unavailable;
 it does not replace deterministic local tests. Production rollout and distributed
 loyalty coordination remain separate gates.
+
+## Local result
+
+The updated graph reports **zero vulnerabilities**. Vitest/coverage move together
+to 4.1.11; fast-uri to 3.1.7, Hono to 4.13.7, qs to 6.16.0, browserslist to 4.28.9
+and baseline-browser-mapping to 2.11.23. Their compatible support dependencies are
+retained in the lockfile; unrelated cross-platform optional entries are preserved.
+No force upgrade, package override or advisory suppression was used.
+
+Full local `npm run verify` passed with disposable PostgreSQL: 66 suites / 505
+tests, 86.99% statements, 77.70% branches, 93.57% functions and 88.38% lines.
+Lint, generation, types, examples, builds, package checks, docs mirrors and launch
+checks passed, followed by `spec:check` and `release:manifest:check`. Hosted CI and
+exact-head review remain required before normal merge.

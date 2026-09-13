@@ -16,7 +16,7 @@ check. Do not hide findings with a baseline or blanket source-directory exclusio
 - [x] First prove `npm run lint` is absent, then add an executable regression
       test that valid TypeScript passes and a real correctness defect fails.
 - [x] Add the pinned lint dependencies, configuration and `verify` integration.
-- [ ] Fix only confirmed findings, run full verification including disposable
+- [x] Fix only confirmed findings, run full verification including disposable
       PostgreSQL, review and normal merge to `dev`.
 
 No deployment, tenant data, scheduling or credential changes. This closes only
@@ -41,3 +41,7 @@ The lockfile refresh also takes the compatible js-yaml security patch. An audit
 of the unchanged base reported nine advisories (three high); the resulting graph
 has eight (two high), none introduced by lint dependencies. Those pre-existing
 advisories are not declared resolved by this lint-only change.
+
+Normally merged through PR #78: reviewed head `11e7b3e`, dev merge `93cc606`.
+Hosted verification passed and there were no outstanding review comments.
+Dependency remediation follows separately in PLA-988.

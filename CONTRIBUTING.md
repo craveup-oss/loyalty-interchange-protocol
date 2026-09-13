@@ -12,8 +12,13 @@ schema-generation checks, types and tests remain separate required gates.
 
 ```sh
 npm install
+npm run audit:check
 npm run verify
 ```
+
+The audit includes development dependencies and fails on moderate-or-higher
+advisories. It runs in CI after the locked install and needs npm registry access;
+network failure is not a clean audit. Keep the full deterministic verify gate too.
 
 Configuration is read from the process environment. Nothing in this repo reads a
 `.env` file implicitly, so export the values yourself. Every value in

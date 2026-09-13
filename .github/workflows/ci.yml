@@ -45,6 +45,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Audit complete dependency graph
+        run: npm run audit:check
       - run: npm run verify
       - run: npm run spec:check
       - run: npm run release:manifest:check

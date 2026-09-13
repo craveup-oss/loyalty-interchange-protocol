@@ -31,3 +31,14 @@ red tests reproduced committed-but-unacknowledged put/clear and unavailable relo
 
 No new table or provider call. This remains single-writer journal storage, not
 distributed leasing, atomic engine-event enqueue or exactly-once HTTP delivery.
+
+## Verification
+
+Eight new storage-boundary regressions cover rejected writes/clears, successful
+retry, delayed clear ordering, caller/read snapshot isolation, lost acknowledgements
+and unavailable reconciliation reads. The focused webhook/store suites pass 37
+tests. Full verification with disposable PostgreSQL passes 66 suites / 513 tests,
+87.04% statements, 77.72% branches, 93.71% functions and 88.41% lines. Lint, types,
+generation, examples, builds, packages, documentation mirrors and launch checks
+pass; the dependency audit reports zero vulnerabilities and both spec/release
+manifest checks pass. Hosted CI and final review remain required for merge.

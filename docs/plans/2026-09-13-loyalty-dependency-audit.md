@@ -23,7 +23,7 @@ compatible fixes out of an unreleased platform is unnecessary risk.
       directly declared Vitest/coverage minimum together. No force upgrades,
       broad overrides, dependency removals or advisory suppressions.
 - [x] Add `audit:check` to the existing CI verification job.
-- [ ] Require zero reported vulnerabilities at this checkpoint, full verification
+- [x] Require zero reported vulnerabilities at this checkpoint, full verification
       with disposable PostgreSQL, generated artifact parity and package/release
       checks. Review the exact lockfile and normal merge after CI.
 
@@ -44,3 +44,7 @@ tests, 86.99% statements, 77.70% branches, 93.57% functions and 88.38% lines.
 Lint, generation, types, examples, builds, package checks, docs mirrors and launch
 checks passed, followed by `spec:check` and `release:manifest:check`. Hosted CI and
 exact-head review remain required before normal merge.
+
+Normal merge completed through loyalty PR #79: reviewed head `b7c9fd80`, dev
+merge `694e3b8f`. Hosted verify, including the audit gate, passed and no review
+threads remained open. Ancestry and merged-tree parity were verified.

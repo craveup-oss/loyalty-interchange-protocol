@@ -64,6 +64,25 @@ const defaultPlans: CloudPlan[] = [
     },
     created_at: timestamp,
     updated_at: timestamp
+  },
+  {
+    plan_id: "business",
+    name: "Business",
+    active: true,
+    monthly_price_minor: 39_900,
+    currency: "USD",
+    included_usage: {
+      monthly_active_members: 25_000,
+      loyalty_transactions: 250_000,
+      messages: 100_000
+    },
+    hard_limits: {
+      monthly_active_members: 100_000,
+      loyalty_transactions: 1_000_000,
+      messages: 500_000
+    },
+    created_at: timestamp,
+    updated_at: timestamp
   }
 ];
 

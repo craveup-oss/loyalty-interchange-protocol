@@ -289,6 +289,11 @@ export class PostgresCloudRepository implements CloudRepository {
       }))
     );
     await transaction(this.pool, async (client) => {
+      // The migration-table bootstrap must share the same serialization fence.
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+        ["lip:cloud:schema-migrations"]
+      );
       await client.query(`
         CREATE TABLE IF NOT EXISTS lip_cloud_schema_migrations (
           version INTEGER PRIMARY KEY,
@@ -296,10 +301,6 @@ export class PostgresCloudRepository implements CloudRepository {
           applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
-      await client.query(
-        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
-        ["lip:cloud:schema-migrations"]
-      );
       const existing = await client.query<{ version: number }>(
         "SELECT version FROM lip_cloud_schema_migrations"
       );

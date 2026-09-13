@@ -284,6 +284,9 @@ export class PostgresMigrator {
       }))
     );
     await inTransaction(this.pool, async (client) => {
+      // IF NOT EXISTS does not serialize concurrent PostgreSQL catalog writes.
+      // Own the bootstrap before creating the migration table itself.
+      await lockTransaction(client, "lip:schema-migrations");
       await client.query(`
         CREATE TABLE IF NOT EXISTS lip_schema_migrations (
           version INTEGER PRIMARY KEY,
@@ -291,7 +294,6 @@ export class PostgresMigrator {
           applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
-      await lockTransaction(client, "lip:schema-migrations");
       const existing = await client.query<{ version: number }>(
         "SELECT version FROM lip_schema_migrations"
       );

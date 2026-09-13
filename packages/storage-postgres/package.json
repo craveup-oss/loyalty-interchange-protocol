@@ -38,6 +38,7 @@
     "prepack": "npm run build"
   },
   "dependencies": {
+    "@loyalty-interchange/protocol": "0.2.0",
     "@loyalty-interchange/reference": "0.2.0",
     "@loyalty-interchange/storage": "0.2.0",
     "pg": "^8.22.0"

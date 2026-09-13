@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Pool } from "pg";
-import type { LoyaltyEvent, LoyaltyEventType } from "@loyalty-interchange/protocol";
+import type { LoyaltyEventType } from "@loyalty-interchange/protocol";
 import {
   LoyaltyEngine,
   programDefinitionFingerprint,
@@ -17,6 +17,8 @@ import {
   assertSessionLeaseCompatibleUrl,
   createPostgresPool
 } from "@loyalty-interchange/storage-postgres";
+import type { PendingEngineEventInput } from "@loyalty-interchange/storage-postgres";
+import { EngineEventPump } from "./engine-event-pump.js";
 import { createDemoProgram, seedDemoData, seedDemoLocations } from "./demo.js";
 import { CampaignService, type CampaignState } from "./campaigns.js";
 import { CustomerDataService, type CustomerDataState } from "./customer-data.js";
@@ -393,6 +395,7 @@ export async function createPostgresProtocolPlatform(
   let locations: LocationDirectoryService | undefined;
   let telemetry: TelemetryService | undefined;
   let bootDispatcher: WebhookDispatcher | undefined;
+  let eventPump: EngineEventPump | undefined;
   try {
     const migrator = new PostgresJsonStateStore({ pool, tenantId, key: "migration-probe" });
     await migrator.migrate();
@@ -453,12 +456,17 @@ export async function createPostgresProtocolPlatform(
     bootDispatcher = dispatcher;
 
     let armed = false;
-    let transactionEvents: LoyaltyEvent[] | undefined;
+    let transactionEvents: PendingEngineEventInput[] | undefined;
     const engine = new EventedLoyaltyEngine(program, {
       ...(stored ? { state: stored.state } : {}),
       emit: (event) => {
         if (!armed) return;
-        if (transactionEvents) transactionEvents.push(event);
+        if (transactionEvents) {
+          const recipients = dispatcher.listSubscriptions().filter((subscription) =>
+            subscription.active && (!subscription.events || subscription.events.includes(event.type))
+          ).map(({ subscription_id, url }) => ({ subscription_id, url }));
+          if (recipients.length) transactionEvents.push({ event: structuredClone(event), recipients });
+        }
         else dispatcher.emit(event);
       }
     });
@@ -467,18 +475,23 @@ export async function createPostgresProtocolPlatform(
     if (!stored) await store.save(engine.exportState(), 0);
 
     const engineStore = store;
+    const pump = new EngineEventPump(engineStore, dispatcher, () => {
+      console.error("[lip] Engine event handoff deferred; durable events retained for retry");
+    });
+    eventPump = pump;
     const executeEngineOperation = async <T>(operation: () => T | Promise<T>): Promise<T> => {
-      const committed = await engineStore.mutate(engine, async () => {
-        const events: LoyaltyEvent[] = [];
+      let events: PendingEngineEventInput[] = [];
+      const result = await engineStore.mutate(engine, async () => {
+        events = [];
         transactionEvents = events;
         try {
-          return { result: await operation(), events };
+          return await operation();
         } finally {
           transactionEvents = undefined;
         }
-      });
-      for (const event of committed.events) dispatcher.emit(event);
-      return committed.result;
+      }, () => events);
+      await pump.drain();
+      return result;
     };
     // Engine snapshots are committed by store.mutate() inside
     // executeEngineOperation, so the services' direct persist hook is a no-op.
@@ -592,6 +605,9 @@ export async function createPostgresProtocolPlatform(
     });
     dispatcher.resumePending();
 
+    await pump.drain();
+    pump.start();
+
     const adminAssetRoot = options.adminAssetRoot ?? discoverAdminAssetRoot();
     return {
       engine,
@@ -609,6 +625,7 @@ export async function createPostgresProtocolPlatform(
       executeEngineOperation,
       readEngineSnapshot,
       close: async () => {
+        await pump.close();
         await campaigns?.close();
         await customerData?.close();
         await memberships?.close();
@@ -626,6 +643,7 @@ export async function createPostgresProtocolPlatform(
       }
     };
   } catch (error) {
+    await eventPump?.close();
     await campaigns?.close();
     await customerData?.close();
     await memberships?.close();

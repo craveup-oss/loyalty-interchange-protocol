@@ -238,7 +238,8 @@ describe("LIP release manifest", () => {
       "apps/cloud/migrations/006_credential_operations.sql",
       "packages/storage-postgres/migrations/001_normalized_engine.sql",
       "packages/storage-postgres/migrations/002_tenant_isolation.sql",
-      "packages/storage-postgres/migrations/003_tenant_runtime_role.sql"
+      "packages/storage-postgres/migrations/003_tenant_runtime_role.sql",
+      "packages/storage-postgres/migrations/004_engine_event_outbox.sql"
     ]);
   });
 

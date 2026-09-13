@@ -239,9 +239,23 @@ export class WebhookDispatcher {
   }
 
   public emit(event: LoyaltyEvent): void {
+    // Standalone callers retain fire-and-forget delivery; persistence errors
+    // are reported by persist(). Transactional callers await enqueue instead.
+    void this.enqueue(event).catch(() => undefined);
+  }
+
+  public async enqueue(
+    event: LoyaltyEvent,
+    recipients?: readonly { subscription_id: string; url: string }[]
+  ): Promise<void> {
+    const writes: Promise<void>[] = [];
     for (const subscription of this.subscriptions) {
-      if (!subscription.active) continue;
-      if (subscription.events && !subscription.events.includes(event.type)) continue;
+      if (recipients) {
+        if (!recipients.some((recipient) => recipient.subscription_id === subscription.subscription_id && recipient.url === subscription.url)) continue;
+      } else {
+        if (!subscription.active) continue;
+        if (subscription.events && !subscription.events.includes(event.type)) continue;
+      }
       const id = deliveryId(event, subscription.url);
       const existing = this.queued.get(id);
       const timestamp = this.now().toISOString();
@@ -254,9 +268,10 @@ export class WebhookDispatcher {
         updated_at: timestamp
       };
       this.queued.set(id, entry);
-      this.persist(() => this.outbox.put(entry));
+      writes.push(this.persist(() => this.outbox.put(entry)));
       this.schedule(entry, subscription);
     }
+    await Promise.all(writes);
   }
 
   /**

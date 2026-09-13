@@ -23,9 +23,9 @@ request cannot be undone; its durable completion still needs reconciliation.
 
 ## Steps and gates
 
-- [ ] Reproduce blocked/rejected outbox writes permitting a network send.
-- [ ] Fix the existing serialization owner, without adding another dispatcher.
-- [ ] Test recovery, completed-history failure, outbox-removal failure and
+- [x] Reproduce blocked/rejected outbox writes permitting a network send.
+- [x] Fix the existing serialization owner, without adding another dispatcher.
+- [x] Test recovery, completed-history failure, outbox-removal failure and
       pause/removal races. Keep existing signing and restart tests.
 - [ ] Run `npm run verify`, review the exact diff and current GitHub comments,
       fix justified findings, then normal merge to `dev`.
@@ -42,3 +42,16 @@ request cannot be undone; its durable completion still needs reconciliation.
   infrastructure. Keep the existing single-instance configuration.
 
 No managed database, deployment, credential or pricing changes in this PR.
+
+## Verification
+
+`npm run verify` passed with an explicitly disposable local PostgreSQL database:
+65 suites / 503 tests, including the PostgreSQL tests rather than skipping them.
+Coverage: 86.97% statements, 77.70% branches, 93.57% functions, 88.38% lines.
+Generation, types, example execution, TypeScript/admin builds, package checks,
+documentation mirror and launch-surface checks passed. The targeted webhook and
+store suites passed 29 tests. Review also caught and preserved zero-history-limit
+behavior; emitted event snapshots now remain stable if a caller mutates its
+original object during asynchronous delivery.
+
+GitHub review and exact-head checks are still required before normal merge.

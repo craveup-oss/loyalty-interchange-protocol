@@ -71,6 +71,13 @@ current retry cycle, `pendingDeliveries()` for the durable queue, and
 
 ## Delivery semantics
 
+The outbox journal serializes puts, removals and clears, and changes its cached
+snapshot only after storage succeeds. A rejected storage operation may have
+committed before losing its acknowledgement, so the journal reloads durable state
+before its next read/write. If that read also fails, it refuses to overwrite the
+unknown state. This protects single-writer recovery; it is not distributed leasing
+or an atomic engine-mutation/event-enqueue guarantee.
+
 Before each HTTP attempt, the dispatcher awaits its outbox write. A storage
 failure stops that cycle without sending, keeps the entry pending in the running
 process, and reports through `onError`. After storage recovers, use the existing

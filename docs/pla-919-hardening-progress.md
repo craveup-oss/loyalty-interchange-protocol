@@ -16,10 +16,29 @@ fresh disposable local database passed: 64 test files, 489 tests, zero skips;
 coverage, generated contracts, types, build, examples, package and docs gates
 passed. The lock-order regression failed for both migrators before the fix.
 
+## Second bounded increment: control-plane route isolation
+
+Implemented the issue's explicitly permitted route-test alternative to changing
+repository signatures. The HTTP matrix exercises all 18 existing-tenant route
+variants for outsiders, inactive memberships and foreign-scoped operators.
+Every denial must reach the real membership lookup for the target organization
+and return its authorization-specific 404, not validation or routing failure.
+Credential/operation hooks and audit/project/environment state remain untouched.
+A mounted-handler inventory forces a new control-plane handler to receive an
+explicit authorization disposition. Authentication itself retains its existing
+OIDC/operator suites; this matrix injects identities at that boundary only.
+
+Mutation proof: removing the environment-list membership check caused all three
+actor cases to fail with a leaked 200. The check was restored. Full `npm run
+verify` with disposable local PostgreSQL passes 65 files / 493 tests, zero skips,
+including types, coverage, builds, examples, packages and docs. No production
+authorization implementation, schema or managed resources changed.
+
 ## Still required before scale-out
 
-1. Organization-scoped control-plane authorization/read contracts and exhaustive
-   cross-organization route tests.
+1. Keep the route membership inventory current. Repository signatures remain
+   unchanged under the issue's route-test alternative; this is not control-plane
+   row-level security or a claim that privileged worker reads are tenant-scoped.
 2. Scheduler, webhook-dispatch and credential-operation coordination. Reuse
    existing PostgreSQL coordination where applicable, but do not assume a lease
    makes an external webhook exactly-once: retries need stable event identity

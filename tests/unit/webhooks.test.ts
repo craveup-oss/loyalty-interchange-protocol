@@ -84,6 +84,174 @@ function eventedEngine(emitted: LoyaltyEvent[], clock = new MutableClock()): Eve
 }
 
 describe("WebhookDispatcher", () => {
+  it("preserves a zero-length history configuration", async () => {
+    const dispatcher = await WebhookDispatcher.create({
+      subscriptions: [{ url: "https://receiver.example/hooks", secret: "hook-secret" }],
+      fetch: capturingFetch([]), historyLimit: 0
+    });
+    dispatcher.emit(makeEvent());
+    await dispatcher.flush();
+    expect(dispatcher.deliveries()).toEqual([]);
+  });
+  it("keeps the emitted event snapshot stable across asynchronous persistence", async () => {
+    const captured: CapturedRequest[] = [];
+    const dispatcher = await WebhookDispatcher.create({
+      subscriptions: [{ url: "https://receiver.example/hooks", secret: "hook-secret" }],
+      fetch: capturingFetch(captured)
+    });
+    const event = makeEvent();
+    dispatcher.emit(event);
+    event.id = "caller-mutated-id";
+    await dispatcher.flush();
+    expect(JSON.parse(captured[0]!.body).id).toBe("evt-test-001");
+    expect(dispatcher.deliveries()[0]!.event_id).toBe("evt-test-001");
+  });
+
+  it("rechecks subscription authority after DNS resolves", async () => {
+    const captured: CapturedRequest[] = [];
+    let release!: (addresses: string[]) => void;
+    let started!: () => void;
+    const resolving = new Promise<void>((resolve) => { started = resolve; });
+    const dispatcher = await WebhookDispatcher.create({
+      subscriptions: [{ url: "https://receiver.example/hooks", secret: "hook-secret" }],
+      fetch: capturingFetch(captured),
+      resolve: async () => { started(); return new Promise<string[]>((resolve) => { release = resolve; }); }
+    });
+    dispatcher.emit(makeEvent());
+    await resolving;
+    dispatcher.removeSubscription(dispatcher.listSubscriptions()[0]!.subscription_id);
+    release(["8.8.8.8"]);
+    await dispatcher.flush();
+    expect(captured).toHaveLength(0);
+    expect(dispatcher.pendingDeliveries()).toHaveLength(0);
+  });
+
+  it("serializes concurrent successful history snapshots before removing their pending evidence", async () => {
+    const saved: string[][] = [];
+    const removed: string[] = [];
+    const dispatcher = await WebhookDispatcher.create({
+      subscriptions: [{ url: "https://receiver.example/hooks", secret: "hook-secret" }],
+      fetch: capturingFetch([]),
+      historyStore: {
+        list: async () => [],
+        save: async (entries) => {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          saved.push(entries.map((entry) => entry.event_id));
+        }
+      },
+      outbox: {
+        list: async () => [], put: async () => {},
+        remove: async (id) => {
+          expect(saved.length).toBeGreaterThan(0);
+          removed.push(id);
+        }
+      }
+    });
+    dispatcher.emit(makeEvent({ id: "one" }));
+    dispatcher.emit(makeEvent({ id: "two" }));
+    await dispatcher.flush();
+    expect(saved.at(-1)?.sort()).toEqual(["one", "two"]);
+    expect(removed).toHaveLength(2);
+    expect(dispatcher.deliveries().map((entry) => entry.event_id).sort()).toEqual(["one", "two"]);
+  });
+
+  it("does not send until the attempt outbox write is durable", async () => {
+    const captured: CapturedRequest[] = [];
+    let release!: () => void;
+    let started!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    const writing = new Promise<void>((resolve) => { started = resolve; });
+    const dispatcher = await WebhookDispatcher.create({
+      subscriptions: [{ url: "https://receiver.example/hooks", secret: "hook-secret" }],
+      fetch: capturingFetch(captured),
+      outbox: {
+        list: async () => [],
+        put: async (entry) => { if (entry.attempts > 0) { started(); await blocked; } },
+        remove: async () => {}
+      }
+    });
+    dispatcher.emit(makeEvent());
+    await writing;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    try { expect(captured).toHaveLength(0); }
+    finally { release(); await dispatcher.flush(); }
+    expect(captured).toHaveLength(1);
+  });
+
+  it("keeps a failed attempt write pending and sends only after storage recovers", async () => {
+    const captured: CapturedRequest[] = [];
+    const errors: string[] = [];
+    let unavailable = true;
+    const dispatcher = await WebhookDispatcher.create({
+      subscriptions: [{ url: "https://receiver.example/hooks", secret: "hook-secret" }],
+      fetch: capturingFetch(captured),
+      onError: (message) => errors.push(message),
+      outbox: {
+        list: async () => [],
+        put: async () => { if (unavailable) throw new Error("storage unavailable"); },
+        remove: async () => {}
+      }
+    });
+    dispatcher.emit(makeEvent());
+    await dispatcher.flush();
+    expect(captured).toHaveLength(0);
+    expect(dispatcher.pendingDeliveries()).toHaveLength(1);
+    expect(errors.some((message) => message.includes("storage unavailable"))).toBe(true);
+    unavailable = false;
+    dispatcher.resumePending();
+    await dispatcher.flush();
+    expect(captured).toHaveLength(1);
+    expect(dispatcher.pendingDeliveries()).toHaveLength(0);
+  });
+
+  it.each(["history", "remove"])("does not resend or claim clean completion when %s persistence fails", async (failure) => {
+    const captured: CapturedRequest[] = [];
+    let removed = false;
+    const dispatcher = await WebhookDispatcher.create({
+      subscriptions: [{ url: "https://receiver.example/hooks", secret: "hook-secret" }],
+      fetch: capturingFetch(captured), maxAttempts: 3, backoffMs: 0,
+      outbox: {
+        list: async () => [], put: async () => {},
+        remove: async () => { if (failure === "remove") throw new Error("remove unavailable"); removed = true; }
+      },
+      historyStore: {
+        list: async () => [],
+        save: async () => { if (failure === "history") throw new Error("history unavailable"); }
+      }
+    });
+    dispatcher.emit(makeEvent());
+    await dispatcher.flush();
+    expect(captured).toHaveLength(1);
+    expect(removed).toBe(false);
+    expect(dispatcher.pendingDeliveries()).toHaveLength(1);
+  });
+
+  it.each(["pause", "remove"])("does not start a send after a %s during the attempt write", async (action) => {
+    const captured: CapturedRequest[] = [];
+    let release!: () => void;
+    let started!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    const writing = new Promise<void>((resolve) => { started = resolve; });
+    const dispatcher = await WebhookDispatcher.create({
+      subscriptions: [{ url: "https://receiver.example/hooks", secret: "hook-secret" }],
+      fetch: capturingFetch(captured),
+      outbox: {
+        list: async () => [],
+        put: async (entry) => { if (entry.attempts > 0) { started(); await blocked; } },
+        remove: async () => {}
+      }
+    });
+    dispatcher.emit(makeEvent());
+    await writing;
+    const id = dispatcher.listSubscriptions()[0]!.subscription_id;
+    if (action === "remove") dispatcher.removeSubscription(id);
+    else dispatcher.upsertSubscription({ subscription_id: id, url: "https://receiver.example/hooks", secret: "hook-secret-long-enough", active: false });
+    release();
+    await dispatcher.flush();
+    expect(captured).toHaveLength(0);
+    expect(dispatcher.pendingDeliveries()).toHaveLength(action === "remove" ? 0 : 1);
+  });
+
   it("validates and updates managed subscriptions without exposing secrets", async () => {
     const persisted: unknown[] = [];
     const captured: CapturedRequest[] = [];

@@ -225,17 +225,17 @@ export class WebhookDispatcher {
 
   /**
    * Serializes durable writes in call order so the sync emit path can enqueue
-   * persistence without awaiting; failures surface through onError instead of
-   * breaking delivery.
+   * persistence without awaiting. The returned promise still rejects so the
+   * delivery boundary can fail closed; the queue tail recovers for later work.
    */
-  private persist(operation: () => Promise<void>): void {
-    this.persistTail = this.persistTail
-      .then(operation)
-      .catch((error: unknown) => {
-        this.onError?.(
-          `webhook persistence failed: ${error instanceof Error ? error.message : String(error)}`
-        );
-      });
+  private persist(operation: () => Promise<void>): Promise<void> {
+    const pending = this.persistTail.then(operation);
+    this.persistTail = pending.catch((error: unknown) => {
+      this.onError?.(
+        `webhook persistence failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    });
+    return pending;
   }
 
   public emit(event: LoyaltyEvent): void {
@@ -247,7 +247,7 @@ export class WebhookDispatcher {
       const timestamp = this.now().toISOString();
       const entry: WebhookOutboxEntry = existing ?? {
         delivery_id: id,
-        event,
+        event: structuredClone(event),
         url: subscription.url,
         attempts: 0,
         created_at: timestamp,
@@ -455,15 +455,17 @@ export class WebhookDispatcher {
     return true;
   }
 
-  private record(record: WebhookDeliveryArchiveEntry): void {
-    this.history.push(record);
-    if (this.history.length > this.historyLimit) {
-      this.history.splice(0, this.history.length - this.historyLimit);
-    }
-    if (!this.historyStore) return;
-    const historyStore = this.historyStore;
-    const snapshot = structuredClone(this.history);
-    this.persist(() => historyStore.save(snapshot));
+  private async record(record: WebhookDeliveryArchiveEntry): Promise<void> {
+    await this.persist(async () => {
+      // Construct inside the serialized operation so concurrent completions
+      // cannot overwrite one another with stale history snapshots.
+      const snapshot = structuredClone([...this.history, record]);
+      if (snapshot.length > this.historyLimit) {
+        snapshot.splice(0, snapshot.length - this.historyLimit);
+      }
+      await this.historyStore?.save(snapshot);
+      this.history.splice(0, this.history.length, ...snapshot);
+    });
   }
 
   private persistSubscriptions(): void {
@@ -507,31 +509,33 @@ export class WebhookDispatcher {
     // Each attempt replaces the queued entry with a fresh snapshot; the
     // snapshot handed to persist() is never mutated afterwards, so what lands
     // in the outbox is the state at enqueue time.
-    const advance = (next: WebhookOutboxEntry): "active" | "paused" | "removed" => {
+    const advance = async (next: WebhookOutboxEntry): Promise<"active" | "paused" | "removed"> => {
       const state = this.subscriptionDeliveryState(subscription);
       if (state === "removed") {
         return "removed";
       }
       current = next;
       this.queued.set(next.delivery_id, next);
-      this.persist(() => this.outbox.put(next));
-      return state;
+      await this.persist(() => this.outbox.put(next));
+      return this.subscriptionDeliveryState(subscription);
     };
     for (let cycleAttempt = 1; cycleAttempt <= maxAttempts; cycleAttempt += 1) {
       if (cycleAttempt > 1) await sleep(backoffMs * 2 ** (cycleAttempt - 2));
       if (this.subscriptionDeliveryState(subscription) !== "active") return;
       const { last_error: _cleared, ...rest } = current;
-      if (advance({
+      if (await advance({
         ...rest,
         attempts: current.attempts + 1,
         updated_at: this.now().toISOString()
       }) !== "active") return;
       const timestamp = Math.floor(this.now().getTime() / 1000);
+      let delivered = false;
       try {
         await assertSafeOutboundDestination(subscription.url, {
           allowPrivateNetworks: this.allowPrivateNetworks,
           resolver: this.resolve
         });
+        if (this.subscriptionDeliveryState(subscription) !== "active") return;
         const response = await this.fetchImpl(subscription.url, {
           method: "POST",
           headers: {
@@ -543,33 +547,36 @@ export class WebhookDispatcher {
           redirect: "error",
           signal: AbortSignal.timeout(timeoutMs)
         });
-        if (response.ok) {
-          this.queued.delete(current.delivery_id);
-          const deliveredId = current.delivery_id;
-          this.persist(() => this.outbox.remove(deliveredId));
-          this.record({
-            delivery_id: current.delivery_id,
-            event: structuredClone(current.event),
-            event_id: current.event.id,
-            event_type: current.event.type,
-            url: subscription.url,
-            attempts: current.attempts,
-            status: "delivered",
-            completed_at: this.now().toISOString()
-          });
-          return;
-        }
-        lastError = `receiver responded with HTTP ${response.status}`;
+        delivered = response.ok;
+        if (!delivered) lastError = `receiver responded with HTTP ${response.status}`;
       } catch (error) {
         lastError = error instanceof Error ? error.message : String(error);
       }
-      if (advance({
+      if (delivered) {
+        // Storage failures are outside the HTTP retry catch: a successful
+        // send must not be repeated merely because local completion failed.
+        await this.record({
+          delivery_id: current.delivery_id,
+          event: structuredClone(current.event),
+          event_id: current.event.id,
+          event_type: current.event.type,
+          url: subscription.url,
+          attempts: current.attempts,
+          status: "delivered",
+          completed_at: this.now().toISOString()
+        });
+        const deliveredId = current.delivery_id;
+        await this.persist(() => this.outbox.remove(deliveredId));
+        this.queued.delete(deliveredId);
+        return;
+      }
+      if (await advance({
         ...current,
         last_error: lastError,
         updated_at: this.now().toISOString()
       }) !== "active") return;
     }
-    this.record({
+    await this.record({
       delivery_id: current.delivery_id,
       event: structuredClone(current.event),
       event_id: current.event.id,

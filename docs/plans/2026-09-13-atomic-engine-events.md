@@ -44,8 +44,18 @@ Engine reset cascades to the source outbox. Ordinary updates must not delete it.
   before journals and the pool close. Delivery failure must not report a
   committed points operation as rolled back.
 - [x] Test crash/restart handoff, recipient changes and storage rejection.
-- [ ] Run full PostgreSQL verify, dependency audit, spec and release checks;
-  self-review, address justified GitHub comments and normal-merge exact head.
+- [x] Run full PostgreSQL verify, dependency audit, spec and release checks.
+- [x] Self-review: add program-scope and recipient-replacement proof; restore
+  in-memory state on ordinary pre-commit failures.
+- [ ] Address justified GitHub comments and normal-merge exact head.
+
+Local verification on the implementation tree passed 68 suites / 523 tests with
+real PostgreSQL and no skipped suites: 87.15% statements, 77.85% branches,
+93.82% functions and 88.53% lines. Lint, types, builds, package/example tests,
+documentation mirror, public/launch safety, spec parity and release-manifest
+checks passed. The complete dependency audit reports zero vulnerabilities.
+Hosted exact-head checks and merge evidence belong to
+[loyalty PR 81](https://github.com/craveup-oss/opensource-loyalty/pull/81).
 
 ## Operational boundaries and rollback
 

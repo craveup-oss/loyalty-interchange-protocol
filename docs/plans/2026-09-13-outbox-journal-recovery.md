@@ -15,11 +15,16 @@ to the cache. Failed writes must reject to their caller without changing cached
 committed state; subsequent operations must still run. Serialize clear in the same
 queue and clone input at admission so caller mutation cannot change queued data.
 
+A storage rejection is not proof of rollback. Mark cached state uncertain and
+reload durable state before any subsequent read/write. If reloading fails, retain
+the uncertainty and refuse new snapshot writes until it recovers. Three additional
+red tests reproduced committed-but-unacknowledged put/clear and unavailable reload.
+
 ## Gates
 
 - [x] Reproduce rejected put/remove/clear against real SQLite with injected
       failures only at the storage boundary.
-- [ ] Implement commit-after-save semantics and queued clear.
+- [x] Implement commit-after-save semantics, queued clear and failed-write reload.
 - [ ] Test successful retry/reopen, concurrent admission order, input isolation
       and clear versus later put. Run full PostgreSQL-backed verify, audit,
       generated/package checks, review, then normal merge to dev.

@@ -355,7 +355,7 @@ export function checkManagedEnvironmentEvidence(
 
     let verifiedSourceTree: string | null = null;
     if (facts.gitCommit) {
-      let resolvedSourceTree: string | null = null;
+      let resolvedSourceTree: string | null;
       try {
         resolvedSourceTree = resolveGitTree(facts.gitCommit, name);
       } catch {

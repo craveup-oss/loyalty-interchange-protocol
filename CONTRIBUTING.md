@@ -5,6 +5,11 @@ behavior start as an issue or proposal and must include conformance fixtures.
 
 ## Local development
 
+Use Node.js 22.13+ (or 24+) for the supported ESLint toolchain. `npm run lint`
+checks maintained JavaScript/TypeScript for correctness; `npm run verify` runs it
+in CI as well. Generated SDK output and build/dependency directories are excluded;
+schema-generation checks, types and tests remain separate required gates.
+
 ```sh
 npm install
 npm run verify

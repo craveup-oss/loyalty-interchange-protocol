@@ -10,7 +10,7 @@
     "apps/*"
   ],
   "engines": {
-    "node": ">=22"
+    "node": "^22.13.0 || >=24"
   },
   "scripts": {
     "build": "npm run build:ts && npm run build:admin",
@@ -29,6 +29,7 @@
     "conformance": "vitest run tests/conformance",
     "docs:check": "tsx scripts/check-docs-mirror.ts",
     "launch:check": "tsx scripts/check-launch-surface.ts",
+    "lint": "eslint . --max-warnings 0",
     "dev": "tsx packages/server/src/cli.ts",
     "example:sdk": "tsx examples/typescript/full-lifecycle.ts",
     "example:bff": "tsx examples/typescript/ordering-bff.ts",
@@ -49,16 +50,20 @@
     "test:visual": "node scripts/verify-rendered-surfaces.mjs",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc -b --pretty false && npm run typecheck --workspace @loyalty-interchange/admin",
-    "verify": "npm run public-safety:check && npm run generate && npm run typecheck && npm run test:coverage && npm run test:examples && npm run build && npm run test:packages && npm run docs:check && npm run launch:check",
+    "verify": "npm run public-safety:check && npm run generate && npm run lint && npm run typecheck && npm run test:coverage && npm run test:examples && npm run build && npm run test:packages && npm run docs:check && npm run launch:check",
     "wallet": "npm run build --workspace @loyalty-interchange/wallet && node apps/wallet/dist/cli.js",
     "wallet:dev": "tsx apps/wallet/src/cli.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^12.1.0",
+    "@eslint/js": "10.0.1",
+    "@typescript-eslint/parser": "8.70.0",
     "@types/node": "^26.1.1",
     "@vitest/coverage-v8": "^4.1.10",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "eslint": "10.10.0",
+    "globals": "17.12.0",
     "tsx": "^4.23.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10",

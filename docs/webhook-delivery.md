@@ -71,6 +71,21 @@ current retry cycle, `pendingDeliveries()` for the durable queue, and
 
 ## Delivery semantics
 
+Before each HTTP attempt, the dispatcher awaits its outbox write. A storage
+failure stops that cycle without sending, keeps the entry pending in the running
+process, and reports through `onError`. After storage recovers, use the existing
+pending-delivery retry action. Pausing/removing a subscription while storage or
+DNS is pending prevents a new send; an already transmitted request cannot be undone.
+
+After a 2xx response, durable history is saved before the pending outbox entry is
+removed. A failure in either completion write does not repeat the HTTP request
+inside that retry cycle. A later retry/restart may still redeliver, so receiver
+deduplication remains mandatory. History and outbox completion are not one
+transaction, and engine mutations and event enqueue are not yet atomic: an
+initial enqueue failure followed by process death can still lose that event.
+This safeguard is not distributed leasing; keep the single-instance restriction
+until PLA-919's multi-instance work and sandbox proof are complete.
+
 - Each event is POSTed as JSON with `LIP-Webhook-Timestamp` and
   `LIP-Webhook-Signature: v1=<base64url>` headers.
 - The destination is checked again before every attempt, and redirects are not

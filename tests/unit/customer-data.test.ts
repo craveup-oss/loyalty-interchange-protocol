@@ -168,7 +168,7 @@ describe("customer data platform", () => {
       .toThrowError(/exactly 2 columns/);
     expect(() => parseCustomerCsv([
       "member_id,attributes_json",
-      'member-001,"{\"\"__proto__\"\":{}}"'
+      'member-001,"{""__proto__"":{}}"'
     ].join("\n"))).toThrowError(/JSON object/);
   });
 });

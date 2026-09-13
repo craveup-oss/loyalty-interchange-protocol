@@ -144,7 +144,7 @@ curl http://127.0.0.1:3210/lip/v1/capabilities \
 
 ### Installation from Source 🛠️
 
-Requirements: Git, Node.js 22 or newer, and npm.
+Requirements: Git, Node.js 22.13+ (or 24+) and npm for source development.
 
 > [!NOTE]
 > This repo uses npm workspaces with `package-lock.json`. pnpm is not the supported install path. For a clean lockfile-only install, use `npm ci` instead of `npm install`.
@@ -340,6 +340,7 @@ npm run example:sdk   # Run the full TypeScript SDK lifecycle
 npm run example:bff   # Run the server-side ordering BFF example
 npm run wallet:dev    # Run the reference guest wallet
 npm run typecheck     # Type-check all packages and Admin app
+npm run lint          # Correctness lint across maintained TS/JS; also runs in verify/CI
 npm test              # Run the full test suite
 npm run build         # Build TypeScript packages and Admin assets
 npm run generate      # Regenerate schemas, OpenAPI, and SDK client

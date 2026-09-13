@@ -40,6 +40,13 @@ for cloud authorization, customer authentication and managed runtime errors
 failed against the old host and pass with the aligned host. Status, code and
 detail semantics are unchanged. Full verification remains 65 files / 493 tests.
 
+Removed the blanket `storage-postgres` coverage exclusion. Existing real
+PostgreSQL tests yield 93.50% statements / 72.54% branches / 88.88% functions /
+93.98% lines for that package. Overall coverage is 86.87% / 77.59% / 93.38% /
+88.28%, above the unchanged global thresholds. CI already provisions PostgreSQL
+and rejects skipped tests; no mock-only substitute or threshold reduction was
+introduced.
+
 ## Still required before scale-out
 
 1. Keep the route membership inventory current. Repository signatures remain
@@ -49,8 +56,9 @@ detail semantics are unchanged. Full verification remains 65 files / 493 tests.
    existing PostgreSQL coordination where applicable, but do not assume a lease
    makes an external webhook exactly-once: retries need stable event identity
    and receiver idempotency, and ownership loss must fence state commits.
-3. Remaining catalogue ownership simplification, lint and PostgreSQL storage
-   coverage. Problem-type host alignment is complete in the second increment.
+3. Remaining catalogue ownership simplification and lint. Problem-type host
+   alignment and PostgreSQL coverage inclusion are complete in the second
+   increment.
 4. Two-instance sandbox evidence for concurrency, restart, lease loss and
    recovery. Keep the existing one-instance deployment restriction until this
    evidence is recorded. This increment does not authorize paid scale-out or

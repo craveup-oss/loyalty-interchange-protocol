@@ -1,6 +1,6 @@
 # Releasing npm packages
 
-All ten `@loyalty-interchange/*` workspaces are configured as public packages
+All eleven `@loyalty-interchange/*` workspaces are configured as public packages
 with provenance, repository metadata, Node.js requirements, and restricted
 `dist` package contents. The first release (v0.1.0) shipped through this
 pipeline with provenance attestations.
@@ -8,12 +8,17 @@ pipeline with provenance attestations.
 ## One-time npm setup
 
 1. Create or claim the `@loyalty-interchange` npm organization.
-2. For each package, configure npm trusted publishing for this GitHub
-   repository and `.github/workflows/release.yml`.
-3. Protect the GitHub `npm` environment with required reviewers.
+2. Bootstrap packages that do not exist yet with the granular `NPM_TOKEN`
+   required by `.github/workflows/release.yml`.
+3. After each package exists, configure npm trusted publishing for this GitHub
+   repository and `.github/workflows/release.yml`, then remove the token path in
+   a reviewed workflow change.
+4. Protect the GitHub `npm` environment with required reviewers.
 
-No long-lived npm token is required. The workflow uses GitHub OIDC and npm
-provenance.
+The current workflow deliberately requires `NPM_TOKEN` and validates its
+read-write access before building release artifacts. GitHub OIDC supplies npm
+provenance, but trusted publishing does not replace the token until every
+package is configured and the workflow is updated accordingly.
 
 ## Verify without publishing
 
@@ -55,9 +60,9 @@ flags or matching environment variables:
 ```sh
 npm run release:manifest -- \
   --out docs/releases/lip-release-manifest.generated.json \
-  --image-reference ghcr.io/craveup/opensource-loyalty@sha256:<digest> \
+  --image-reference ghcr.io/craveup-oss/opensource-loyalty@sha256:<digest> \
   --image-digest sha256:<digest> \
-  --image-provenance-url https://github.com/craveup/opensource-loyalty/actions/runs/<run>/attestations/sha256:<digest> \
+  --image-provenance-url https://github.com/craveup-oss/opensource-loyalty/actions/runs/<run>/attestations/sha256:<digest> \
   --audit-report-sha256 <64 lowercase hex> \
   --sbom-sha256 <64 lowercase hex> \
   --risk-register-sha256 <64 lowercase hex> \
@@ -66,7 +71,7 @@ npm run release:manifest -- \
   --critical <count> \
   --unapproved-high 0 \
   --unapproved-critical 0 \
-  --verification-run-url https://github.com/craveup/opensource-loyalty/actions/runs/<run> \
+  --verification-run-url https://github.com/craveup-oss/opensource-loyalty/actions/runs/<run> \
   --conformance-report-sha256 <64 lowercase hex>
 ```
 
@@ -106,6 +111,14 @@ proof before this manifest contract changes.
 Bump changed package versions and internal dependency ranges together, then
 publish a GitHub release. The release workflow verifies the repository and
 publishes packages in dependency order.
+
+The immutable GitHub `v0.2.0` release exists, but its two publish attempts
+stopped at the first npm package because the protected environment supplied no
+`NPM_TOKEN`. Ten packages remain at `0.1.2`, `adapter-kit` is not published, and
+no `0.2.0` package exists in the live registry. Do not move or recreate that
+tag. Repair distribution with valid npm authority and a new reviewed release;
+until then, do not describe the GitHub release, npm packages, and GHCR image as
+one fully public `0.2.0` bundle.
 
 Publishing is intentionally not performed from a developer laptop. A failed
 package stops the workflow to avoid silently producing a partially ordered

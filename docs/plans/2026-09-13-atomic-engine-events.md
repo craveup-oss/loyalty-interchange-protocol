@@ -1,7 +1,7 @@
 # Atomic PostgreSQL engine events — PLA-990
 
-Status: implemented, awaiting exact-head PR verification and merge. No deployment
-or scale-out authorization.
+Status: implemented and merged to `dev` through PR 81. No deployment or scale-out
+authorization.
 
 ## Decision
 
@@ -47,7 +47,10 @@ Engine reset cascades to the source outbox. Ordinary updates must not delete it.
 - [x] Run full PostgreSQL verify, dependency audit, spec and release checks.
 - [x] Self-review: add program-scope and recipient-replacement proof; restore
   in-memory state on ordinary pre-commit failures.
-- [ ] Address justified GitHub comments and normal-merge exact head.
+- [x] Address justified GitHub comments and normal-merge exact head. PR 81 had no
+  review or inline comments; it was normal-merged on 2026-09-13 at exact head
+  `06150111b` (merge commit `4dab708`, parents `0239e69` and `06150111b`) with
+  the hosted `verify` check green on that head.
 
 Local verification on the implementation tree passed 68 suites / 523 tests with
 real PostgreSQL and no skipped suites: 87.15% statements, 77.85% branches,

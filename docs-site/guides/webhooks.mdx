@@ -74,8 +74,9 @@ The outbox journal serializes puts, removals and clears, and changes its cached
 snapshot only after storage succeeds. A rejected storage operation may have
 committed before losing its acknowledgement, so the journal reloads durable state
 before its next read/write. If that read also fails, it refuses to overwrite the
-unknown state. This protects single-writer recovery; it is not distributed leasing
-or an atomic engine-mutation/event-enqueue guarantee.
+unknown state. This protects single-writer recovery; it is not distributed leasing.
+The journal itself does not make engine mutations atomic with event enqueue; on
+PostgreSQL that guarantee comes from the engine event outbox described above.
 
 Before each HTTP attempt, the dispatcher awaits its outbox write. A storage
 failure stops that cycle without sending, keeps the entry pending in the running
@@ -87,9 +88,16 @@ After a 2xx response, durable history is saved before the pending outbox entry i
 removed. A failure in either completion write does not repeat the HTTP request
 inside that retry cycle. A later retry/restart may still redeliver, so receiver
 deduplication remains mandatory. History and outbox completion are not one
-transaction, and engine mutations and event enqueue are not yet atomic: an
-initial enqueue failure followed by process death can still lose that event.
-This safeguard is not distributed leasing; keep the single-instance restriction
+transaction.
+
+Engine mutations and event enqueue are atomic on PostgreSQL:
+`executeEngineOperation` commits engine state and pending events to
+`lip_engine_event_outbox` in one transaction, and an event whose first handoff
+fails stays there until startup, a later mutation or the 30-second timer admits
+it. They are still not atomic on SQLite/demo mode: engine state and the outbox
+entry are separate writes and the enqueue is not awaited, so an initial enqueue
+failure followed by process death can still lose that event.
+None of these safeguards is distributed leasing; keep the single-instance restriction
 until PLA-919's multi-instance work and sandbox proof are complete.
 
 - Each event is POSTed as JSON with `LIP-Webhook-Timestamp` and `LIP-Webhook-Signature: v1=<base64url>` headers.

@@ -130,7 +130,7 @@ npm run mcp
 Requirements: Git and Docker.
 
 ```bash
-git clone https://github.com/craveup-oss/opensource-loyalty.git
+git clone https://github.com/craveup-oss/loyalty-interchange-protocol.git
 cd opensource-loyalty
 docker compose up --build
 ```
@@ -164,7 +164,7 @@ Requirements: Git, Node.js 22 or newer, and npm.
 > This repo uses npm workspaces with `package-lock.json`. pnpm is not the supported install path. For a clean lockfile-only install, use `npm ci` instead of `npm install`.
 
 ```bash
-git clone https://github.com/craveup-oss/opensource-loyalty.git
+git clone https://github.com/craveup-oss/loyalty-interchange-protocol.git
 cd opensource-loyalty
 npm install
 npm start
@@ -422,6 +422,6 @@ This project is licensed under [Apache-2.0](LICENSE).
 
 ## Support 💬
 
-Use [GitHub Discussions](https://github.com/craveup-oss/opensource-loyalty/discussions)
+Use [GitHub Discussions](https://github.com/craveup-oss/loyalty-interchange-protocol/discussions)
 for questions and ideas, structured issues for reproducible work, and
 [SUPPORT.md](SUPPORT.md) for the support boundary.

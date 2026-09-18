@@ -62,7 +62,7 @@ npm run release:manifest -- \
   --out docs/releases/lip-release-manifest.generated.json \
   --image-reference ghcr.io/craveup-oss/opensource-loyalty@sha256:<digest> \
   --image-digest sha256:<digest> \
-  --image-provenance-url https://github.com/craveup-oss/opensource-loyalty/actions/runs/<run>/attestations/sha256:<digest> \
+  --image-provenance-url https://github.com/craveup-oss/loyalty-interchange-protocol/actions/runs/<run>/attestations/sha256:<digest> \
   --audit-report-sha256 <64 lowercase hex> \
   --sbom-sha256 <64 lowercase hex> \
   --risk-register-sha256 <64 lowercase hex> \
@@ -71,7 +71,7 @@ npm run release:manifest -- \
   --critical <count> \
   --unapproved-high 0 \
   --unapproved-critical 0 \
-  --verification-run-url https://github.com/craveup-oss/opensource-loyalty/actions/runs/<run> \
+  --verification-run-url https://github.com/craveup-oss/loyalty-interchange-protocol/actions/runs/<run> \
   --conformance-report-sha256 <64 lowercase hex>
 ```
 

@@ -15,7 +15,7 @@ npx skills add .
 Or install from the public repository without cloning:
 
 ```bash
-npx skills add craveup-oss/opensource-loyalty
+npx skills add craveup-oss/loyalty-interchange-protocol
 ```
 
 Install one skill:

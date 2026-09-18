@@ -48,7 +48,7 @@ until a provisioning adapter processes their job. A local adapter ships today
 
 Setting `LIP_CLOUD_PUBLIC_BASE_URL` starts the diskless managed runtime: one
 listener, path-scoped tenant runtimes, and every durable byte in Postgres (see
-[the diskless managed runtime runbook](https://github.com/craveup-oss/opensource-loyalty/blob/main/docs/runbooks/diskless-managed-runtime.md).
+[the diskless managed runtime runbook](https://github.com/craveup-oss/loyalty-interchange-protocol/blob/main/docs/runbooks/diskless-managed-runtime.md).
 Setting `LIP_CLOUD_PROGRAM_DIR`
 instead starts the standalone file-backed provisioner with
 `LocalDataPlaneProvisioner`, which runs one LIP data-plane runtime per

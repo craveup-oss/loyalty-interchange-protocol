@@ -8,7 +8,7 @@ If you just want to try the project, use Docker:
 
 ```sh
 git clone https://github.com/craveup-oss/loyalty-interchange-protocol.git
-cd opensource-loyalty
+cd loyalty-interchange-protocol
 docker compose up --build
 ```
 
@@ -18,7 +18,7 @@ supported install path unless the project is intentionally migrated later.
 
 ```sh
 git clone https://github.com/craveup-oss/loyalty-interchange-protocol.git
-cd opensource-loyalty
+cd loyalty-interchange-protocol
 npm install
 npm start
 ```

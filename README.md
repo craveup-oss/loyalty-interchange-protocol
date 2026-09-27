@@ -131,7 +131,7 @@ Requirements: Git and Docker.
 
 ```bash
 git clone https://github.com/craveup-oss/loyalty-interchange-protocol.git
-cd opensource-loyalty
+cd loyalty-interchange-protocol
 docker compose up --build
 ```
 
@@ -165,7 +165,7 @@ Requirements: Git, Node.js 22 or newer, and npm.
 
 ```bash
 git clone https://github.com/craveup-oss/loyalty-interchange-protocol.git
-cd opensource-loyalty
+cd loyalty-interchange-protocol
 npm install
 npm start
 ```

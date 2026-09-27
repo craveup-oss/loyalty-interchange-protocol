@@ -15,7 +15,7 @@ Fastest path with Docker:
 
 ```sh
 git clone https://github.com/craveup-oss/loyalty-interchange-protocol.git
-cd opensource-loyalty
+cd loyalty-interchange-protocol
 docker compose up --build
 ```
 
@@ -24,7 +24,7 @@ Developer path from source. Use npm; this repo uses npm workspaces and
 
 ```sh
 git clone https://github.com/craveup-oss/loyalty-interchange-protocol.git
-cd opensource-loyalty
+cd loyalty-interchange-protocol
 npm install
 npm start
 ```

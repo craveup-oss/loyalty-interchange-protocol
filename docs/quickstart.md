@@ -16,6 +16,8 @@ Use npm for source installs. This repo uses npm workspaces and
 is intentionally migrated later.
 
 ```sh
+git clone https://github.com/craveup-oss/loyalty-interchange-protocol.git
+cd loyalty-interchange-protocol
 npm install
 npm start
 ```

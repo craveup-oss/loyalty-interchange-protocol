@@ -69,5 +69,8 @@
     "typescript": "^6.0.3",
     "vitest": "^4.1.11",
     "yaml": "^2.9.0"
+  },
+  "overrides": {
+    "postcss-selector-parser": "7.1.6"
   }
 }

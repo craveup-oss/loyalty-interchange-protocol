@@ -62,6 +62,8 @@ export interface CloudControlPlaneOptions {
   now?: () => Date;
   attacher?: RemoteEnvironmentAttacher;
   billing?: CloudBillingProvider;
+  /** Best-effort local wake, invoked only after the environment/job commit. */
+  onProvisioningJobCreated?: () => void;
 }
 
 export type LocalEnvironmentOperation = "suspend" | "resume" | "backup" | "restore";
@@ -123,6 +125,7 @@ export class CloudControlPlane {
   private readonly clock: () => Date;
   private readonly attacher: RemoteEnvironmentAttacher;
   private readonly billing: CloudBillingProvider;
+  private readonly onProvisioningJobCreated: (() => void) | undefined;
 
   public constructor(options: CloudControlPlaneOptions) {
     this.repository = options.repository;
@@ -132,6 +135,7 @@ export class CloudControlPlane {
     this.clock = options.now ?? (() => new Date());
     this.attacher = options.attacher ?? new RemoteEnvironmentAttacher();
     this.billing = options.billing ?? new UnconfiguredBillingProvider();
+    this.onProvisioningJobCreated = options.onProvisioningJobCreated;
   }
 
   public async migrate(): Promise<void> {
@@ -653,6 +657,13 @@ export class CloudControlPlane {
         throw new CloudError(409, "resource_conflict", error.message);
       }
       throw error;
+    }
+    // The durable queue remains authoritative if a local wake fails. Never
+    // turn a committed create into a failed request that a caller might replay.
+    try {
+      this.onProvisioningJobCreated?.();
+    } catch {
+      console.error("[lip-cloud] provisioning wake failed; durable polling will recover the job");
     }
     return environment;
   }

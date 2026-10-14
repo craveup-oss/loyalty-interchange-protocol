@@ -682,6 +682,16 @@ export function createCloudServer(
     }
 
     void (async () => {
+      // Startup applies migrations/isolation checks and restores runtimes
+      // before listening. Development liveness must not wake Postgres on each
+      // infrastructure probe; /ready remains the explicit database check.
+      if (method === "GET" && path === "/live") {
+        if (options.deployment?.environment !== "development") {
+          throw new CloudError(404, "not_found", "Route not found");
+        }
+        sendJson(response, 200, { status: "ok", service: "lip-cloud-control-plane" });
+        return;
+      }
       // Tenant traffic is dispatched before anything else: it must not be
       // filtered by control-plane CORS, auth or route matching, which exist for
       // a different audience entirely.
@@ -1098,6 +1108,13 @@ export async function startCloudServer(
   options: CloudServerOptions & { host?: string; port?: number }
 ): Promise<RunningCloudServer> {
   const server = createCloudServer(controlPlane, options);
+  if (options.deployment?.environment === "development" && options.readiness) {
+    // A cheap liveness probe is safe only after the full startup gate passed.
+    // In particular, restore() can retain a failed tenant and continue booting.
+    if (!(await options.readiness()).ready) {
+      throw new Error("Managed development startup readiness failed");
+    }
+  }
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 3220;
   await new Promise<void>((resolve, reject) => {

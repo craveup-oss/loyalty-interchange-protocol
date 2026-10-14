@@ -38,7 +38,7 @@ describe.skipIf(!postgresUrl)("runSharedClusterMigrations against Postgres", () 
     try {
       const tables = await client.query<{ table_name: string }>(
         `SELECT table_name FROM information_schema.tables
-         WHERE table_name IN
+         WHERE table_schema = current_schema() AND table_name IN
            ('lip_schema_migrations', 'lip_cloud_schema_migrations',
             'lip_engine_members', 'lip_cloud_environments')`
       );

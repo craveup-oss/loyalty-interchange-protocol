@@ -29,7 +29,7 @@ import {
   assertOperatorManagementReachable
 } from "./operator-service.js";
 import { PostgresCloudRepository } from "./postgres-repository.js";
-import { CloudProvisioningWorker } from "./provisioning.js";
+import { CloudProvisioningWorker, provisioningPollingOptions } from "./provisioning.js";
 import { CloudControlPlane } from "./service.js";
 import { startCloudServer } from "./server.js";
 import type { EnvironmentCredentialRotationOptions } from "./types.js";
@@ -108,6 +108,8 @@ const billing = stripeSecret && stripeWebhookSecret
       }
     })
   : undefined;
+const pollingOptions = provisioningPollingOptions(process.env["LIP_CLOUD_DEPLOYMENT_ENVIRONMENT"]);
+let worker: CloudProvisioningWorker | undefined;
 const controlPlane = new CloudControlPlane({
   repository,
   regions,
@@ -115,7 +117,10 @@ const controlPlane = new CloudControlPlane({
   ...(process.env["LIP_CLOUD_ALLOW_PRIVATE_ATTACH_NETWORKS"] === "true"
     ? { attacher: new RemoteEnvironmentAttacher({ allowPrivateNetworks: true }) }
     : {}),
-  ...(billing ? { billing } : {})
+  ...(billing ? { billing } : {}),
+  ...(pollingOptions.idlePollIntervalMs
+    ? { onProvisioningJobCreated: () => worker?.wake() }
+    : {})
 });
 await controlPlane.migrate();
 
@@ -195,7 +200,6 @@ if (publicBaseUrl) {
 }
 
 let provisioner: LocalDataPlaneProvisioner | undefined;
-let worker: CloudProvisioningWorker | undefined;
 if (programDirectory) {
   if (!credentialEncryptionKey) {
     throw new Error(
@@ -252,7 +256,8 @@ if (managed) {
   worker = new CloudProvisioningWorker({
     repository,
     provisioner: managed,
-    workerId: `managed-${hostname()}-${process.pid}`
+    workerId: `managed-${hostname()}-${process.pid}`,
+    ...pollingOptions
   });
   worker.start();
 }

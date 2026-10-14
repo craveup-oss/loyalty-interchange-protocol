@@ -1108,6 +1108,17 @@ export class PostgresCloudRepository implements CloudRepository {
     });
   }
 
+  public async nextProvisioningJobAt(): Promise<string | undefined> {
+    const result = await this.pool.query<{ available_at: Date | null }>(`
+      SELECT min(CASE WHEN status = 'pending' THEN available_at
+                      WHEN status = 'running' THEN claimed_until END) AS available_at
+      FROM lip_cloud_provisioning_jobs
+      WHERE status IN ('pending', 'running')
+    `);
+    const at = result.rows[0]?.available_at;
+    return at ? iso(at) : undefined;
+  }
+
   public async completeProvisioningJob(
     jobId: string,
     result: CloudProvisioningResult

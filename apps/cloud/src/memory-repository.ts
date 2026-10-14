@@ -683,7 +683,7 @@ export class MemoryCloudRepository implements CloudRepository {
     }
     const job = [...this.provisioningJobs.values()].find(
       (candidate) =>
-        candidate.status === "pending" ||
+        (candidate.status === "pending" && Date.parse(candidate.available_at) <= Date.now()) ||
         (
           candidate.status === "running" &&
           Boolean(
@@ -706,6 +706,15 @@ export class MemoryCloudRepository implements CloudRepository {
       delete environment.status_message;
     }
     return clone(job);
+  }
+
+  public async nextProvisioningJobAt(): Promise<string | undefined> {
+    const times = [...this.provisioningJobs.values()].flatMap((job) => {
+      const at = job.status === "pending" ? job.available_at
+        : job.status === "running" ? job.claimed_until : undefined;
+      return at ? [Date.parse(at)] : [];
+    });
+    return times.length ? new Date(Math.min(...times)).toISOString() : undefined;
   }
 
   public async completeProvisioningJob(

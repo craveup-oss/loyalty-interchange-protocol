@@ -447,6 +447,8 @@ export interface CloudRepository {
     workerId: string,
     leaseSeconds: number
   ): Promise<CloudProvisioningJob | undefined>;
+  /** Earliest pending retry or running lease expiry, including future work. */
+  nextProvisioningJobAt(): Promise<string | undefined>;
   completeProvisioningJob(
     jobId: string,
     result: CloudProvisioningResult

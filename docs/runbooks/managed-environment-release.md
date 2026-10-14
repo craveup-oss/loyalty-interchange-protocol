@@ -1,5 +1,35 @@
 # Managed development, sandbox, and production release runbook
 
+## Development idle polling (activation requires a separate deployment)
+
+With `LIP_CLOUD_DEPLOYMENT_ENVIRONMENT=development`, the managed provisioning worker
+checks an empty queue every 30 minutes. A successfully committed environment creation wakes
+the local worker immediately; enqueues during a claim or provision are retained without
+parallel claim cycles. Work is drained at the normal five-second cadence, and durable retry
+timestamps and running lease expiries shorten the idle wait, including after a restart.
+The queue remains authoritative: direct database writes or another process do not send a
+local wake and rely on the deadline/30-minute fallback. Keep the managed deployment single-instance.
+Sandbox, production, and deployments without the exact `development` label retain five-second polling.
+
+Development alone exposes `GET /live`, a process liveness check that does not query Postgres.
+Startup still applies migrations, verifies tenant isolation, and restores ready runtimes before
+listening. `/ready` and `/health` retain their real database checks; do not scrape them frequently
+when testing scale to zero. The Docker health check selects `/live` only for the development label.
+
+For a separately approved development rollout:
+1. Record the selected full commit and source-tree digest, then perform the release checks below.
+2. Deploy only `crave-loyalty-development`. Change its Render infrastructure health-check path
+   from `/ready` to `/live` as part of that approved rollout; merging this code does not change
+   the provider setting. Require a successful explicit `/ready` check before accepting the rollout.
+3. Verify idle compute actually suspends, then create an authorized test environment and prove
+   immediate provisioning, retry/lease recovery, and restart recovery. Remove test resources through
+   the normal approved lifecycle. Compare daily CU-hours over several normal development days.
+
+Hourly encrypted-handoff retention remains enabled. Restored tenant runtimes still run their
+campaign/membership/engagement/event schedulers; this change does not promise scale to zero with
+tenants loaded. No production promotion, deployment, database migration, or provider-setting change
+is implied by a merge into `dev`.
+
 This is the release authority for the shared Crave Loyalty development, sandbox, and production
 clusters. It complements
 [`shared-cluster-provisioning.md`](shared-cluster-provisioning.md), which covers tenant onboarding

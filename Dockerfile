@@ -32,6 +32,7 @@ USER node
 EXPOSE 3210 3220 3230
 
 HEALTHCHECK --interval=5s --timeout=2s --start-period=5s --retries=5 \
-  CMD wget -qO- "http://127.0.0.1:${HEALTH_PORT:-3210}/health" >/dev/null || exit 1
+  CMD if [ "$LIP_CLOUD_DEPLOYMENT_ENVIRONMENT" = "development" ]; then probe_path=/live; else probe_path=/health; fi; \
+      wget -qO- "http://127.0.0.1:${HEALTH_PORT:-3210}${probe_path}" >/dev/null || exit 1
 
 CMD ["node", "packages/server/dist/cli.js"]

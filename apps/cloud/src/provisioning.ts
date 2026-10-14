@@ -18,7 +18,15 @@ export interface CloudProvisioningWorkerOptions {
   workerId: string;
   leaseSeconds?: number;
   pollIntervalMs?: number;
+  idlePollIntervalMs?: number;
   onError?: (error: unknown) => void;
+}
+
+/** Only the managed development deployment opts into long idle sleeps. */
+export function provisioningPollingOptions(environment: string | undefined): Pick<
+  CloudProvisioningWorkerOptions, "idlePollIntervalMs"
+> {
+  return environment === "development" ? { idlePollIntervalMs: 30 * 60 * 1_000 } : {};
 }
 
 export class CloudProvisioningWorker {
@@ -27,9 +35,14 @@ export class CloudProvisioningWorker {
   private readonly workerId: string;
   private readonly leaseSeconds: number;
   private readonly pollIntervalMs: number;
+  private readonly idlePollIntervalMs: number;
   private readonly onError: (error: unknown) => void;
   private timer: NodeJS.Timeout | undefined;
   private running = false;
+  private started = false;
+  private cycleInFlight = false;
+  private wakeRequested = false;
+  private nextJobAt: number | undefined;
 
   public constructor(options: CloudProvisioningWorkerOptions) {
     if (!options.workerId.trim()) throw new Error("Provisioning worker id is required");
@@ -38,14 +51,58 @@ export class CloudProvisioningWorker {
     this.workerId = options.workerId;
     this.leaseSeconds = options.leaseSeconds ?? 60;
     this.pollIntervalMs = options.pollIntervalMs ?? 5_000;
+    this.idlePollIntervalMs = options.idlePollIntervalMs ?? this.pollIntervalMs;
+    for (const interval of [this.pollIntervalMs, this.idlePollIntervalMs]) {
+      if (!Number.isSafeInteger(interval) || interval < 1 || interval > 2_147_483_647) {
+        throw new Error("Provisioning poll intervals must be positive timer-safe integers");
+      }
+    }
     this.onError = options.onError ?? ((error) => console.error("[lip-cloud] provisioning failed", error));
   }
 
   public start(): void {
-    if (this.timer) return;
-    this.timer = setInterval(() => void this.runOnce(), this.pollIntervalMs);
-    this.timer.unref();
-    void this.runOnce();
+    if (this.started) return;
+    this.started = true;
+    this.wake();
+  }
+
+  /** Called after a job is durably enqueued; never runs parallel claim cycles. */
+  public wake(): void {
+    if (!this.started) return;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = undefined;
+    this.wakeRequested = true;
+    if (!this.cycleInFlight) void this.tick();
+  }
+
+  private async tick(): Promise<void> {
+    if (!this.started || this.cycleInFlight) return;
+    this.cycleInFlight = true;
+    this.wakeRequested = false;
+    let delay = this.pollIntervalMs;
+    try {
+      const result = await this.runOnce();
+      // Future retries and unexpired claims survive process restarts. Wake at
+      // the durable deadline rather than treating them as an empty queue.
+      if (result === "idle") {
+        delay = this.nextJobAt === undefined ? this.idlePollIntervalMs
+          : Math.min(this.idlePollIntervalMs, Math.max(this.pollIntervalMs, this.nextJobAt - Date.now()));
+      }
+    } catch (error) {
+      this.onError(error);
+    } finally {
+      this.cycleInFlight = false;
+      if (this.started) {
+        if (this.wakeRequested) {
+          // An enqueue can race the empty claim or an in-flight provision.
+          // Preserve that wake instead of entering the long idle sleep.
+          queueMicrotask(() => void this.tick());
+        } else {
+          this.timer = setTimeout(() => void this.tick(), delay);
+          this.timer.unref();
+        }
+      }
+    }
   }
 
   public async runOnce(): Promise<"idle" | "succeeded" | "retrying" | "failed"> {
@@ -56,7 +113,13 @@ export class CloudProvisioningWorker {
         this.workerId,
         this.leaseSeconds
       );
-      if (!job) return "idle";
+      if (!job) {
+        if (this.idlePollIntervalMs > this.pollIntervalMs) {
+          const next = await this.repository.nextProvisioningJobAt();
+          this.nextJobAt = next ? Date.parse(next) : undefined;
+        }
+        return "idle";
+      }
       const environment = await this.repository.environmentById(job.environment_id);
       if (!environment) {
         await this.repository.failProvisioningJob(
@@ -94,7 +157,9 @@ export class CloudProvisioningWorker {
   }
 
   public close(): void {
-    if (this.timer) clearInterval(this.timer);
+    this.started = false;
+    this.wakeRequested = false;
+    if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
   }
 }
